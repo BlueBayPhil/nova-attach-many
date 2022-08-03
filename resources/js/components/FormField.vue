@@ -1,8 +1,8 @@
 <template>
     <default-field :field="field" :full-width-content="field.fullWidth" :show-help-text="false">
-        <template slot="field" :class="{'border-danger border': hasErrors}">
-            <div class="attach-many-container" :class="{'border-danger border': hasErrors}">
-                <div v-if="field.showToolbar" class="flex border-b-0 border border-40 relative">
+        <template slot="field">
+            <div class="attach-many-container">
+                <div v-if="field.showToolbar" class="flex relative">
                     <div v-if="preview" class="flex justify-center items-center absolute pin z-10 bg-white">
                         <h3>{{ __('Selected Items') }} ({{ selected.length  }})</h3>
                     </div>
@@ -13,8 +13,9 @@
                         <input v-model="search" type="text" :placeholder="__('Search')" class="form-control form-input form-input-bordered w-full ml-0 m-4">
                         <span v-if="search" @click="clearSearch" class="pin-r font-sans font-bolder absolute pr-8 cursor-pointer text-black hover:text-80">x</span>
                     </div>
+                  <create-relation-button @click="showModal" class="ml-1" />
                 </div>
-                <div class="border border-40 relative overflow-auto" :style="{ height: field.height }">
+                <div class="relative overflow-auto" :style="{ height: field.height }">
                     <div v-if="loading" class="flex justify-center items-center absolute pin z-50 bg-white">
                         <loader class="text-60" />
                     </div>
@@ -55,14 +56,30 @@
                 </span>
             </div>
 
+          <portal to="modals" transition="fade-transition">
+            <create-relation-modal
+                v-if="modalShowing"
+                @set-resource="confirmModal"
+                @cancelled-create="hideModal"
+                :resource-name="field.resourceName"
+                :resource-id="resourceId"
+                via-relationship="BelongsToMany"
+                :via-resource="viaResource"
+                :via-resource-id="viaResourceId"
+                width="800"
+            />
+          </portal>
         </template>
     </default-field>
 </template>
 
 <script>
 import { FormField, HandlesValidationErrors } from 'laravel-nova'
+import CreateResourceModal from "./CreateResourceModal.vue";
+import _ from "lodash";
 
 export default {
+  components: [CreateResourceModal],
     mixins: [FormField, HandlesValidationErrors],
 
     props: ['resourceName', 'resourceId', 'field'],
@@ -75,12 +92,50 @@ export default {
             available: [],
             preview: false,
             loading: true,
+          modalShowing: false,
         }
     },
     methods: {
         setInitialValue() {
             this.retrieveData();
         },
+
+      showModal() {
+        Nova.$emit('create-relation-modal-opened');
+          this.modalShowing = true;
+      },
+      hideModal() {
+        this.modalShowing = false;
+        Nova.$emit('create-relation-modal-closed');
+      },
+      confirmModal({id}) {
+          console.debug([id]);
+          this.hideModal();
+          this.selected = [id];
+        this.retrieveData(true);
+      },
+      /**
+       * Get the query params for getting available resources
+       */
+      queryParams() {
+        return {
+          params: {
+            current: this.selectedResourceId,
+            first: this.initializingWithExistingResource,
+            search: this.search,
+            withTrashed: this.withTrashed,
+            resourceId: this.resourceId,
+            viaResource: this.viaResource,
+            viaResourceId: this.viaResourceId,
+            viaRelationship: this.viaRelationship,
+            editing: true,
+            editMode:
+                _.isNil(this.resourceId) || this.resourceId === ''
+                    ? 'create'
+                    : 'update',
+          },
+        }
+      },
 
         retrieveData(keepSelected=false) {
             let baseUrl = '/nova-vendor/nova-attach-many/';

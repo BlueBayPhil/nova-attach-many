@@ -57,7 +57,7 @@ class AttachMany extends Field
 
                     // fetch the submitted values
                     $values = json_decode(request()->input($attribute), true);
-                    
+
                     // if $values is null make it an empty array instead
                     if (is_null($values)) {
                         $values = [];
@@ -189,5 +189,13 @@ class AttachMany extends Field
         $this->showSubtitle = $showSubtitle;
 
         return $this;
+    }
+
+    public function jsonSerialize()
+    {
+        $output = parent::jsonSerialize();
+        $output['resourceName'] = $this->resourceName;
+
+        return $output;
     }
 }
